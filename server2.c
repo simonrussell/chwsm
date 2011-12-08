@@ -68,9 +68,9 @@ void http_callback(EV_P_ ev_io *w, int revents)
     
     if (length > 0)
     {
-      printf("%i: read %i bytes\n", http->id, length);
+      //printf("%i: read %i bytes\n", http->id, length);
       buffer[length] = '\0';
-      puts(buffer);
+      //puts(buffer);
       
       http->bytes_read += length;
     }
@@ -78,11 +78,11 @@ void http_callback(EV_P_ ev_io *w, int revents)
   
   if (http->bytes_read > 10 && revents | EV_WRITE)
   {
-    printf("%i: writing!\n", http->id);
+    //printf("%i: writing!\n", http->id);
     
     char message[] = "HTTP/1.0 200 OK\n\nHello world";
     int result = write(http->watcher.fd, message, sizeof(message)); 
-    printf("%i: wrote %i bytes\n", http->id, result);
+    //printf("%i: wrote %i bytes\n", http->id, result);
     
     shutdown(http->watcher.fd, SHUT_RDWR);
     close(http->watcher.fd);
@@ -119,7 +119,7 @@ void listener_callback(EV_P_ ev_io *w, int revents)
  
   http_connection *http = new_http_connection(connection);
   
-  printf("%i: accepted!\n", http->id);
+  //printf("%i: accepted!\n", http->id);
 }
 
 

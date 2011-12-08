@@ -22,6 +22,7 @@ struct ev_loop *event_loop;
 typedef struct {
   ev_io watcher; // must be first!
   int id;
+  int bytes_read;
 } http_connection;
 
 int bind_socket(int socket, uint16_t port)
@@ -70,10 +71,12 @@ void http_callback(EV_P_ ev_io *w, int revents)
       printf("%i: read %i bytes\n", http->id, length);
       buffer[length] = '\0';
       puts(buffer);
+      
+      http->bytes_read += length;
     }
   }
   
-  if (revents | EV_WRITE)
+  if (http->bytes_read > 10 && revents | EV_WRITE)
   {
     printf("%i: writing!\n", http->id);
     
@@ -96,6 +99,7 @@ http_connection *new_http_connection(int socket)
   http_connection *result = malloc(sizeof(http_connection));
   
   result->id = ++http_id;
+  result->bytes_read = 0;
   
   set_nonblock(socket);
   ev_io_init(&result->watcher, http_callback, socket, EV_READ | EV_WRITE);

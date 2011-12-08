@@ -17,6 +17,13 @@
 #define DIE_IF(x) ((x) ? (perror(__FILE__ ":" STRINGIZE(__LINE__)), exit(1)) : 0)
 #define DIE_LZ(x) DIE_IF((x) < 0)
 
+struct ev_loop *event_loop;
+
+typedef struct {
+  ev_io watcher; // must be first!
+  int id;
+} http_connection;
+
 int bind_socket(int socket, uint16_t port)
 {
   struct sockaddr_in address = {
@@ -48,6 +55,55 @@ int setup_listener(int port)
   return listener;
 }
 
+void http_callback(EV_P_ ev_io *w, int revents)
+{
+  http_connection *http = (http_connection *) w;
+  
+  if (revents | EV_READ)
+  {
+    char buffer[1024];
+    
+    int length = read(http->watcher.fd, buffer, 1024);
+    
+    if (length > 0)
+    {
+      printf("%i: read %i bytes\n", http->id, length);
+      buffer[length] = '\0';
+      puts(buffer);
+    }
+  }
+  
+  if (revents | EV_WRITE)
+  {
+    printf("%i: writing!\n", http->id);
+    
+    char message[] = "HTTP/1.0 200 OK\n\nHello world";
+    int result = write(http->watcher.fd, message, sizeof(message)); 
+    printf("%i: wrote %i bytes\n", http->id, result);
+    
+    shutdown(http->watcher.fd, SHUT_RDWR);
+    close(http->watcher.fd);
+    
+    ev_io_stop(event_loop, &http->watcher);
+    free(http);
+  }
+}
+
+int http_id = 0;
+
+http_connection *new_http_connection(int socket)
+{
+  http_connection *result = malloc(sizeof(http_connection));
+  
+  result->id = ++http_id;
+  
+  set_nonblock(socket);
+  ev_io_init(&result->watcher, http_callback, socket, EV_READ | EV_WRITE);
+  ev_io_start(event_loop, &result->watcher);
+  
+  return result;
+}
+
 void listener_callback(EV_P_ ev_io *w, int revents)
 {
   int connection = accept(w->fd, NULL, 0);
@@ -57,27 +113,22 @@ void listener_callback(EV_P_ ev_io *w, int revents)
     
   DIE_LZ(connection);  
  
-  set_nonblock(connection);
+  http_connection *http = new_http_connection(connection);
   
-  puts("accepted!");
-
-  char message[] = "HTTP/1.0 200 OK\n\nHello world";
-  write(connection, message, sizeof(message)); 
- 
-//    DIE_LZ(shutdown(connection, SHUT_WR));
-  DIE_LZ(close(connection));
+  printf("%i: accepted!\n", http->id);
 }
+
 
 int main(void)
 {
   int listener = setup_listener(9000);
-  struct ev_loop *loop = EV_DEFAULT;
+  event_loop = EV_DEFAULT;
 
   ev_io listener_watcher;
   ev_io_init(&listener_watcher, listener_callback, listener, EV_READ);
-  ev_io_start(loop, &listener_watcher);
+  ev_io_start(event_loop, &listener_watcher);
   
-  ev_run(loop, 0);
+  ev_run(event_loop, 0);
 
   puts("finishing loop");
 

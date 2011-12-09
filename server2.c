@@ -97,7 +97,7 @@ void http_callback(EV_P_ ev_io *w, int revents)
   {
     //printf("%i: writing!\n", http->id);
     
-    char message[] = "HTTP/1.0 200 OK\n\nHello world";
+    char message[] = "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n\r\nHello world";
     int result = write(http->watcher.fd, message, sizeof(message)); 
     //printf("%i: wrote %i bytes\n", http->id, result);
     

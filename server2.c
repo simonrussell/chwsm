@@ -19,6 +19,8 @@
 
 #define TRACE printf(__FILE__ ":" STRINGIZE(__LINE__) "\n");
 
+#define UNUSED(x) (void)(x)
+
 struct ev_loop *event_loop;
 
 typedef struct {
@@ -63,6 +65,8 @@ int setup_listener(int port)
 
 void http_callback(EV_P_ ev_io *w, int revents)
 {
+  UNUSED(loop);
+  
   http_connection *http = (http_connection *) w;
   
 //  printf("%i: revents=%i bytes=%i\n", http->id, revents, http->bytes_read);
@@ -84,7 +88,7 @@ void http_callback(EV_P_ ev_io *w, int revents)
       
       http->bytes_read += length;
     }
-    else if (length < 0 && errno != EWOULDBLOCK || length == 0)
+    else if ((length < 0 && errno != EWOULDBLOCK) || length == 0)
     {
       close(http->watcher.fd);
       
@@ -98,8 +102,7 @@ void http_callback(EV_P_ ev_io *w, int revents)
     //printf("%i: writing!\n", http->id);
     
     char message[] = "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n\r\nHello world";
-    int result = write(http->watcher.fd, message, sizeof(message)); 
-    //printf("%i: wrote %i bytes\n", http->id, result);
+    write(http->watcher.fd, message, sizeof(message)); 
     
     shutdown(http->watcher.fd, SHUT_RDWR);
     close(http->watcher.fd);
@@ -129,6 +132,9 @@ http_connection *new_http_connection(int socket)
 
 void listener_callback(EV_P_ ev_io *w, int revents)
 { 
+  UNUSED(loop);
+  UNUSED(revents);
+  
   int connection = accept(w->fd, NULL, 0);
 //  printf("accepted %i errno=%i\n", connection, errno);
   
@@ -137,9 +143,7 @@ void listener_callback(EV_P_ ev_io *w, int revents)
     
   DIE_LZ(connection);  
  
-  http_connection *http = new_http_connection(connection);
-  
-  //printf("%i: accepted!\n", http->id);
+  new_http_connection(connection);
 }
 
 

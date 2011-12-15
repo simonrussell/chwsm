@@ -73,9 +73,16 @@ int setup_listener(int port)
 
 void http_destroy(http_connection *http)
 {
+//  printf("%i: CLOSING\n", http->id);
+//  fflush(stdout);
   close(http->watcher.fd);
   ev_io_stop(event_loop, &http->watcher);
   free(http); 
+}
+
+int quick_write(int fd, const char *string)
+{
+  return write(fd, string, strlen(string));
 }
 
 void http_callback(EV_P_ ev_io *w, int revents)
@@ -119,11 +126,20 @@ void http_callback(EV_P_ ev_io *w, int revents)
   {
     //printf("%i: writing!\n", http->id);
     
-    char message[] = "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n\r\nHello world";
-    write(http->watcher.fd, message, sizeof(message)); 
+    quick_write(http->watcher.fd, "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n");
     
-    shutdown(http->watcher.fd, SHUT_RDWR);
-    http_destroy(http);
+/*    if (http_should_keep_alive(&http->parser))
+    {
+      quick_write(http->watcher.fd, "Connection: keep-alive\r\n");
+    }*/
+    
+    quick_write(http->watcher.fd, "\r\nHello world");
+    
+    //if (!http_should_keep_alive(&http->parser))
+    //{
+      shutdown(http->watcher.fd, SHUT_RDWR);
+      http_destroy(http);
+    //}
   }
 }
 

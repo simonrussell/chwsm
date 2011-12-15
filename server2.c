@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -23,6 +24,8 @@
 
 #define UNUSED(x) (void)(x)
 
+#define PARSER_TO_CONNECTION(parser) (http_connection *)((void*)(parser) - offsetof(http_connection, parser))
+
 struct ev_loop *event_loop;
 http_parser_settings http_settings;
 
@@ -30,6 +33,7 @@ typedef struct {
   ev_io watcher; // must be first!
   int id;
   int bytes_read;
+  int message_complete;
   http_parser parser;
 } http_connection;
 
@@ -111,7 +115,7 @@ void http_callback(EV_P_ ev_io *w, int revents)
     }
   }
   
-  if (http->bytes_read > 10 && (revents & EV_WRITE))
+  if (http->message_complete && (revents & EV_WRITE))
   {
     //printf("%i: writing!\n", http->id);
     
@@ -128,10 +132,12 @@ int http_id = 0;
 http_connection *new_http_connection(int socket)
 {
   http_connection *result = malloc(sizeof(http_connection));
+  memset(result, 0, sizeof(http_connection));
   
   result->id = ++http_id;
   result->bytes_read = 0;
-
+  result->message_complete = 0;
+  
   http_parser_init(&result->parser, HTTP_REQUEST);
   
   set_nonblock(socket);
@@ -154,14 +160,25 @@ void listener_callback(EV_P_ ev_io *w, int revents)
   if (connection < 0 && errno == EWOULDBLOCK)
     return;
     
-  DIE_LZ(connection);  
+  DIE_LZ(connection);
  
   new_http_connection(connection);
+}
+
+int message_complete(http_parser *parser)
+{
+  http_connection *http = PARSER_TO_CONNECTION(parser);
+  
+  http->message_complete = 1;
+  
+  return 0;
 }
 
 void setup_http_parser_settings(void)
 {
   memset(&http_settings, 0, sizeof(http_settings));
+  
+  http_settings.on_message_complete = message_complete;
 }
 
 int main(void)

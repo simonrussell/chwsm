@@ -73,8 +73,6 @@ int setup_listener(int port)
 
 void http_destroy(http_connection *http)
 {
-//  printf("%i: CLOSING\n", http->id);
-//  fflush(stdout);
   close(http->watcher.fd);
   ev_io_stop(event_loop, &http->watcher);
   free(http); 
@@ -91,16 +89,11 @@ void http_callback(EV_P_ ev_io *w, int revents)
   
   http_connection *http = (http_connection *) w;
   
-//  printf("%i: revents=%i bytes=%i\n", http->id, revents, http->bytes_read);
-  
-  if (revents & EV_READ)
+  if (!http->message_complete && (revents & EV_READ))
   {
     char buffer[1024];
     
     int length = read(http->watcher.fd, buffer, 1024);
-    
-//    if (length <= 0)
-//      printf("%i/%i:%i:%i\n", http->id, http->watcher.fd, length, length < 0 ? errno : 0);
     
     if (length > 0)
     {      
@@ -124,22 +117,24 @@ void http_callback(EV_P_ ev_io *w, int revents)
   
   if (http->message_complete && (revents & EV_WRITE))
   {
-    //printf("%i: writing!\n", http->id);
-    
     quick_write(http->watcher.fd, "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n");
     
-/*    if (http_should_keep_alive(&http->parser))
+    if (http_should_keep_alive(&http->parser))
     {
       quick_write(http->watcher.fd, "Connection: keep-alive\r\n");
-    }*/
+    }
     
     quick_write(http->watcher.fd, "\r\nHello world");
     
-    //if (!http_should_keep_alive(&http->parser))
-    //{
+    if (!http_should_keep_alive(&http->parser))
+    {
       shutdown(http->watcher.fd, SHUT_RDWR);
       http_destroy(http);
-    //}
+    }
+    else
+    {
+      http->message_complete = 0;
+    }
   }
 }
 
@@ -160,8 +155,6 @@ http_connection *new_http_connection(int socket)
   ev_io_init(&result->watcher, http_callback, socket, EV_READ | EV_WRITE);
   ev_io_start(event_loop, &result->watcher);
 
-//  printf("%i:%i\n", result->id, socket);
-  
   return result;
 }
 
@@ -171,7 +164,6 @@ void listener_callback(EV_P_ ev_io *w, int revents)
   UNUSED(revents);
   
   int connection = accept(w->fd, NULL, 0);
-//  printf("accepted %i errno=%i\n", connection, errno);
   
   if (connection < 0 && errno == EWOULDBLOCK)
     return;
@@ -196,13 +188,11 @@ int url_callback(http_parser *parser, const char *at, size_t length)
   UNUSED(at);
   UNUSED(length);
 
-  http_connection *http = PARSER_TO_CONNECTION(parser);
+/*  http_connection *http = PARSER_TO_CONNECTION(parser);
     
   printf("%i: ", http->id);
-  fflush(stdout);
-  write(STDOUT_FILENO, at, length);
-  puts("");
-  fflush(stdout);
+  fwrite(at, length, 1, stdout);
+  puts("");*/
   
   return 0;
 }
@@ -221,8 +211,6 @@ int main(void)
 {
   setup_http_parser_settings();
   
-//  printf("epoll available = %i; \n", !!(ev_supported_backends() & EVBACKEND_EPOLL));
-
   int listener = setup_listener(9000);
   event_loop = ev_default_loop(EVBACKEND_EPOLL);
 

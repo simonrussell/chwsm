@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <string.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -10,6 +11,7 @@
 #include <arpa/inet.h>
 
 #include <ev.h>
+#include <http_parser.h>
 
 #define STRINGIZE_DETAIL(x) #x
 #define STRINGIZE(x) STRINGIZE_DETAIL(x)
@@ -22,11 +24,13 @@
 #define UNUSED(x) (void)(x)
 
 struct ev_loop *event_loop;
+http_parser_settings http_settings;
 
 typedef struct {
   ev_io watcher; // must be first!
   int id;
   int bytes_read;
+  http_parser parser;
 } http_connection;
 
 int bind_socket(int socket, uint16_t port)
@@ -63,6 +67,13 @@ int setup_listener(int port)
   return listener;
 }
 
+void http_destroy(http_connection *http)
+{
+  close(http->watcher.fd);
+  ev_io_stop(event_loop, &http->watcher);
+  free(http); 
+}
+
 void http_callback(EV_P_ ev_io *w, int revents)
 {
   UNUSED(loop);
@@ -81,19 +92,22 @@ void http_callback(EV_P_ ev_io *w, int revents)
 //      printf("%i/%i:%i:%i\n", http->id, http->watcher.fd, length, length < 0 ? errno : 0);
     
     if (length > 0)
-    {
-//      printf("%i: read %i bytes\n", http->id, length);
-      buffer[length] = '\0';
-      //puts(buffer);
-      
+    {      
       http->bytes_read += length;
+      
+      int bytes_parsed = http_parser_execute(&http->parser, &http_settings, buffer, length);
+      
+      if (bytes_parsed < length)
+      {
+        printf("%i: parse error!\n", http->id);
+        http_destroy(http);
+        return;
+      }
     }
     else if ((length < 0 && errno != EWOULDBLOCK) || length == 0)
     {
-      close(http->watcher.fd);
-      
-      ev_io_stop(event_loop, &http->watcher);
-      free(http);      
+      http_destroy(http);
+      return;
     }
   }
   
@@ -105,10 +119,7 @@ void http_callback(EV_P_ ev_io *w, int revents)
     write(http->watcher.fd, message, sizeof(message)); 
     
     shutdown(http->watcher.fd, SHUT_RDWR);
-    close(http->watcher.fd);
-    
-    ev_io_stop(event_loop, &http->watcher);
-    free(http);
+    http_destroy(http);
   }
 }
 
@@ -120,6 +131,8 @@ http_connection *new_http_connection(int socket)
   
   result->id = ++http_id;
   result->bytes_read = 0;
+
+  http_parser_init(&result->parser, HTTP_REQUEST);
   
   set_nonblock(socket);
   ev_io_init(&result->watcher, http_callback, socket, EV_READ | EV_WRITE);
@@ -146,9 +159,15 @@ void listener_callback(EV_P_ ev_io *w, int revents)
   new_http_connection(connection);
 }
 
+void setup_http_parser_settings(void)
+{
+  memset(&http_settings, 0, sizeof(http_settings));
+}
 
 int main(void)
 {
+  setup_http_parser_settings();
+  
 //  printf("epoll available = %i; \n", !!(ev_supported_backends() & EVBACKEND_EPOLL));
 
   int listener = setup_listener(9000);

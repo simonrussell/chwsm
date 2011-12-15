@@ -179,9 +179,14 @@ int url_callback(http_parser *parser, const char *at, size_t length)
   UNUSED(parser);
   UNUSED(at);
   UNUSED(length);
-  
-  //write(STDOUT_FILENO, at, length);
-  //puts("");
+
+  http_connection *http = PARSER_TO_CONNECTION(parser);
+    
+  printf("%i: ", http->id);
+  fflush(stdout);
+  write(STDOUT_FILENO, at, length);
+  puts("");
+  fflush(stdout);
   
   return 0;
 }
@@ -192,6 +197,8 @@ void setup_http_parser_settings(void)
   
   http_settings.on_message_complete = message_complete_callback;
   http_settings.on_url = url_callback;
+  http_settings.on_header_field = url_callback;
+  http_settings.on_header_value = url_callback;
 }
 
 int main(void)

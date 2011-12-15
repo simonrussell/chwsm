@@ -25,6 +25,7 @@
 #define UNUSED(x) (void)(x)
 
 #define PARSER_TO_CONNECTION(parser) (http_connection *)((void*)(parser) - offsetof(http_connection, parser))
+#define WATCHER_TO_CONNECTION(w) (http_connection *)((void*)(w) - offsetof(http_connection, watcher))
 
 struct ev_loop *event_loop;
 http_parser_settings http_settings;
@@ -108,7 +109,7 @@ void http_callback(EV_P_ ev_io *w, int revents)
 {
   UNUSED(loop);
   
-  http_connection *http = (http_connection *) w;
+  http_connection *http = WATCHER_TO_CONNECTION(w);
   
   if (!http->message_complete && (revents & EV_READ))
   {

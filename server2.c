@@ -165,7 +165,7 @@ void listener_callback(EV_P_ ev_io *w, int revents)
   new_http_connection(connection);
 }
 
-int message_complete(http_parser *parser)
+int message_complete_callback(http_parser *parser)
 {
   http_connection *http = PARSER_TO_CONNECTION(parser);
   
@@ -174,11 +174,24 @@ int message_complete(http_parser *parser)
   return 0;
 }
 
+int url_callback(http_parser *parser, const char *at, size_t length)
+{
+  UNUSED(parser);
+  UNUSED(at);
+  UNUSED(length);
+  
+  //write(STDOUT_FILENO, at, length);
+  //puts("");
+  
+  return 0;
+}
+
 void setup_http_parser_settings(void)
 {
   memset(&http_settings, 0, sizeof(http_settings));
   
-  http_settings.on_message_complete = message_complete;
+  http_settings.on_message_complete = message_complete_callback;
+  http_settings.on_url = url_callback;
 }
 
 int main(void)

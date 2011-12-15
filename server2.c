@@ -32,7 +32,6 @@ http_parser_settings http_settings;
 typedef struct {
   ev_io watcher; // must be first!
   int id;
-  int bytes_read;
   int message_complete;
   http_parser parser;
 } http_connection;
@@ -83,6 +82,28 @@ int quick_write(int fd, const char *string)
   return write(fd, string, strlen(string));
 }
 
+void write_response(http_connection *http)
+{
+  quick_write(http->watcher.fd, "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n");
+  
+  if (http_should_keep_alive(&http->parser))
+  {
+    quick_write(http->watcher.fd, "Connection: keep-alive\r\n");
+  }
+  
+  quick_write(http->watcher.fd, "\r\nHello world");
+  
+  if (!http_should_keep_alive(&http->parser))
+  {
+    shutdown(http->watcher.fd, SHUT_RDWR);
+    http_destroy(http);
+  }
+  else
+  {
+    http->message_complete = 0;
+  }
+}
+
 void http_callback(EV_P_ ev_io *w, int revents)
 {
   UNUSED(loop);
@@ -91,14 +112,12 @@ void http_callback(EV_P_ ev_io *w, int revents)
   
   if (!http->message_complete && (revents & EV_READ))
   {
-    char buffer[1024];
+    char buffer[8192];
     
-    int length = read(http->watcher.fd, buffer, 1024);
+    int length = read(http->watcher.fd, buffer, sizeof(buffer));
     
     if (length > 0)
     {      
-      http->bytes_read += length;
-      
       int bytes_parsed = http_parser_execute(&http->parser, &http_settings, buffer, length);
       
       if (bytes_parsed < length)
@@ -114,28 +133,6 @@ void http_callback(EV_P_ ev_io *w, int revents)
       return;
     }
   }
-  
-  if (http->message_complete && (revents & EV_WRITE))
-  {
-    quick_write(http->watcher.fd, "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n");
-    
-    if (http_should_keep_alive(&http->parser))
-    {
-      quick_write(http->watcher.fd, "Connection: keep-alive\r\n");
-    }
-    
-    quick_write(http->watcher.fd, "\r\nHello world");
-    
-    if (!http_should_keep_alive(&http->parser))
-    {
-      shutdown(http->watcher.fd, SHUT_RDWR);
-      http_destroy(http);
-    }
-    else
-    {
-      http->message_complete = 0;
-    }
-  }
 }
 
 int http_id = 0;
@@ -143,16 +140,13 @@ int http_id = 0;
 http_connection *new_http_connection(int socket)
 {
   http_connection *result = malloc(sizeof(http_connection));
-  memset(result, 0, sizeof(http_connection));
   
+  ev_io_init(&result->watcher, http_callback, socket, EV_READ);
   result->id = ++http_id;
-  result->bytes_read = 0;
-  result->message_complete = 0;
-  
+  result->message_complete = 0;  
   http_parser_init(&result->parser, HTTP_REQUEST);
   
   set_nonblock(socket);
-  ev_io_init(&result->watcher, http_callback, socket, EV_READ | EV_WRITE);
   ev_io_start(event_loop, &result->watcher);
 
   return result;
@@ -178,6 +172,8 @@ int message_complete_callback(http_parser *parser)
   http_connection *http = PARSER_TO_CONNECTION(parser);
   
   http->message_complete = 1;
+  
+  write_response(http);
   
   return 0;
 }

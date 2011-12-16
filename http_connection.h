@@ -11,6 +11,8 @@ typedef struct {
   int message_complete;
   http_parser parser;
   rope data;
+  const char *response;
+  size_t response_length;
 } http_connection;
 
 void set_nonblock(int socket);

@@ -32,32 +32,47 @@ void http_destroy(http_connection *http)
   free(http); 
 }
 
+const char *normal_response = "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n\r\nHello world";
+const char *keepalive_response = "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 11\r\nConnection: keep-alive\r\n\r\nHello world";
+
 static
-int quick_write(int fd, const char *string)
+void setup_response(http_connection *http)
 {
-  return write(fd, string, strlen(string));
+  if (http_should_keep_alive(&http->parser))
+  {
+    http->response = keepalive_response;
+  }
+  else
+  {  
+    http->response = normal_response;
+  }
+  
+  http->response_length = strlen(http->response);
 }
 
 static
 void write_response(http_connection *http)
 {
-  quick_write(http->watcher.fd, "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n");
+  int bytes_written = write(http->watcher.fd, http->response, http->response_length);
+
+  http->response += bytes_written;
+  http->response_length -= bytes_written;
   
-  if (http_should_keep_alive(&http->parser))
+  if (http->response_length == 0)
   {
-    quick_write(http->watcher.fd, "Connection: keep-alive\r\n");
-  }
-  
-  quick_write(http->watcher.fd, "\r\nHello world");
-  
-  if (!http_should_keep_alive(&http->parser))
-  {
-    shutdown(http->watcher.fd, SHUT_RDWR);
-    http_destroy(http);
+    if (!http_should_keep_alive(&http->parser))
+    {
+      shutdown(http->watcher.fd, SHUT_RDWR);
+      http_destroy(http);
+    }
+    else
+    {
+      http->message_complete = 0;
+    }
   }
   else
   {
-    http->message_complete = 0;
+    printf("partial write\n");
   }
 }
 
@@ -91,6 +106,11 @@ void http_callback(EV_P_ ev_io *w, int revents)
       return;
     }
   }
+  
+  if (http->response_length && (revents & EV_WRITE))
+  {
+    write_response(http);
+  }
 }
 
 int http_id = 0;
@@ -101,11 +121,13 @@ http_connection *new_http_connection(int socket)
   
   result->id = ++http_id;
   result->message_complete = 0;  
+  result->response = NULL;
+  result->response_length = 0;
   http_parser_init(&result->parser, HTTP_REQUEST);
   rope_init(&result->data);
   
   set_nonblock(socket);
-  ev_io_init(&result->watcher, http_callback, socket, EV_READ);
+  ev_io_init(&result->watcher, http_callback, socket, EV_READ | EV_WRITE);
   ev_io_start(event_loop, &result->watcher);
 
   return result;
@@ -129,7 +151,7 @@ int message_complete_callback(http_parser *parser)
   http->message_complete = 1;
   
 //  rope_puts(&http->data);
-  write_response(http);
+  setup_response(http);
   
   return 0;
 }

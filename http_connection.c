@@ -78,8 +78,6 @@ void http_callback(EV_P_ ev_io *w, int revents)
     {
       int bytes_parsed = http_parser_execute(&http->parser, &http_settings, read_buffer, length);
       
-      rope_append_raw(&http->data, read_buffer, bytes_parsed);
-      
       if (bytes_parsed < length)
       {
         printf("%i: parse error!\n", http->id);
@@ -130,6 +128,7 @@ int message_complete_callback(http_parser *parser)
   
   http->message_complete = 1;
   
+//  rope_puts(&http->data);
   write_response(http);
   
   return 0;
@@ -138,15 +137,8 @@ int message_complete_callback(http_parser *parser)
 static
 int url_callback(http_parser *parser, const char *at, size_t length)
 {
-  UNUSED(parser);
-  UNUSED(at);
-  UNUSED(length);
-
-/*  http_connection *http = PARSER_TO_CONNECTION(parser);
-    
-  printf("%i: ", http->id);
-  fwrite(at, length, 1, stdout);
-  puts("");*/
+  http_connection *http = PARSER_TO_CONNECTION(parser);
+  rope_append_raw(&http->data, at, length);
   
   return 0;
 }

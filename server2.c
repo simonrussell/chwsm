@@ -73,6 +73,8 @@ int main(void)
 {
   setup_http_parser_settings();
   
+  signal(SIGPIPE, SIG_IGN);
+  
   int listener = setup_listener(9000);
   event_loop = ev_default_loop(EVBACKEND_EPOLL);
 

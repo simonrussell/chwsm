@@ -16,7 +16,7 @@ LDFLAGS += -lev
 run: server2
 	./server2
 
-server2: server2.o http_parser.o
+server2: server2.o http_parser.o http_connection.o
 	$(CC) $(CFLAGS_DEBUG) $^ $(LDFLAGS) -o $@
   
 .c.o:

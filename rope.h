@@ -8,6 +8,9 @@ typedef struct {
   size_t length;
 } rope;
 
+void rope_init(rope *);
+void rope_clear(rope *);
+
 rope *rope_create(void);
 void rope_destroy(rope *);
 

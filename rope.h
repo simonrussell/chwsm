@@ -15,8 +15,8 @@ rope *rope_create(void);
 void rope_destroy(rope *);
 
 // copies in the data
-void rope_append_raw(rope *, const char *, size_t);
-void rope_append(rope *, const char *);
+void rope_append_raw(rope *, int colour, const char *, size_t);
+void rope_append(rope *, int colour, const char *);
 
 void rope_puts(const rope *);
 

@@ -134,12 +134,31 @@ int message_complete_callback(http_parser *parser)
   return 0;
 }
 
+#define URL_COLOUR 0
+#define HEADER_FIELD_COLOUR 1
+#define HEADER_VALUE_COLOUR 2
+
 static
 int url_callback(http_parser *parser, const char *at, size_t length)
 {
   http_connection *http = PARSER_TO_CONNECTION(parser);
-  rope_append_raw(&http->data, at, length);
-  
+  rope_append_raw(&http->data, URL_COLOUR, at, length);
+  return 0;
+}
+
+static
+int header_field_callback(http_parser *parser, const char *at, size_t length)
+{
+  http_connection *http = PARSER_TO_CONNECTION(parser);
+  rope_append_raw(&http->data, HEADER_FIELD_COLOUR, at, length);
+  return 0;
+}
+
+static
+int header_value_callback(http_parser *parser, const char *at, size_t length)
+{
+  http_connection *http = PARSER_TO_CONNECTION(parser);
+  rope_append_raw(&http->data, HEADER_VALUE_COLOUR, at, length);
   return 0;
 }
 
@@ -150,6 +169,6 @@ void setup_http_parser_settings(void)
   http_settings.on_message_begin = message_begin_callback;
   http_settings.on_message_complete = message_complete_callback;
   http_settings.on_url = url_callback;
-  http_settings.on_header_field = url_callback;
-  http_settings.on_header_value = url_callback;
+  http_settings.on_header_field = header_field_callback;
+  http_settings.on_header_value = header_value_callback;
 }

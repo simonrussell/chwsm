@@ -3,12 +3,14 @@
 
 #include <ev.h>
 #include "http_parser.h"
+#include "rope.h"
 
 typedef struct {
   ev_io watcher; // must be first!
   int id;
   int message_complete;
   http_parser parser;
+  rope data;
 } http_connection;
 
 void set_nonblock(int socket);

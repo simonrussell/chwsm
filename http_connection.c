@@ -27,6 +27,8 @@ void http_destroy(http_connection *http)
 {
   close(http->watcher.fd);
   ev_io_stop(event_loop, &http->watcher);
+
+  rope_clear(&http->data);
   free(http); 
 }
 
@@ -36,6 +38,7 @@ int quick_write(int fd, const char *string)
   return write(fd, string, strlen(string));
 }
 
+static
 void write_response(http_connection *http)
 {
   quick_write(http->watcher.fd, "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n");
@@ -60,6 +63,7 @@ void write_response(http_connection *http)
 
 char read_buffer[8192];
 
+static
 void http_callback(EV_P_ ev_io *w, int revents)
 {
   UNUSED(loop);
@@ -71,8 +75,10 @@ void http_callback(EV_P_ ev_io *w, int revents)
     int length = read(http->watcher.fd, read_buffer, sizeof(read_buffer));
     
     if (length > 0)
-    {      
+    {
       int bytes_parsed = http_parser_execute(&http->parser, &http_settings, read_buffer, length);
+      
+      rope_append_raw(&http->data, read_buffer, bytes_parsed);
       
       if (bytes_parsed < length)
       {
@@ -95,17 +101,29 @@ http_connection *new_http_connection(int socket)
 {
   http_connection *result = malloc(sizeof(http_connection));
   
-  ev_io_init(&result->watcher, http_callback, socket, EV_READ);
   result->id = ++http_id;
   result->message_complete = 0;  
   http_parser_init(&result->parser, HTTP_REQUEST);
+  rope_init(&result->data);
   
   set_nonblock(socket);
+  ev_io_init(&result->watcher, http_callback, socket, EV_READ);
   ev_io_start(event_loop, &result->watcher);
 
   return result;
 }
 
+static
+int message_begin_callback(http_parser *parser)
+{
+  http_connection *http = PARSER_TO_CONNECTION(parser);
+
+  rope_clear(&http->data);
+  
+  return 0;  
+}
+
+static
 int message_complete_callback(http_parser *parser)
 {
   http_connection *http = PARSER_TO_CONNECTION(parser);
@@ -117,6 +135,7 @@ int message_complete_callback(http_parser *parser)
   return 0;
 }
 
+static
 int url_callback(http_parser *parser, const char *at, size_t length)
 {
   UNUSED(parser);
@@ -136,6 +155,7 @@ void setup_http_parser_settings(void)
 {
   memset(&http_settings, 0, sizeof(http_settings));
   
+  http_settings.on_message_begin = message_begin_callback;
   http_settings.on_message_complete = message_complete_callback;
   http_settings.on_url = url_callback;
   http_settings.on_header_field = url_callback;

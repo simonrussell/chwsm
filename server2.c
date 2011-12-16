@@ -105,6 +105,8 @@ void write_response(http_connection *http)
   }
 }
 
+char read_buffer[8192];
+
 void http_callback(EV_P_ ev_io *w, int revents)
 {
   UNUSED(loop);
@@ -113,13 +115,11 @@ void http_callback(EV_P_ ev_io *w, int revents)
   
   if (!http->message_complete && (revents & EV_READ))
   {
-    char buffer[8192];
-    
-    int length = read(http->watcher.fd, buffer, sizeof(buffer));
+    int length = read(http->watcher.fd, read_buffer, sizeof(read_buffer));
     
     if (length > 0)
     {      
-      int bytes_parsed = http_parser_execute(&http->parser, &http_settings, buffer, length);
+      int bytes_parsed = http_parser_execute(&http->parser, &http_settings, read_buffer, length);
       
       if (bytes_parsed < length)
       {

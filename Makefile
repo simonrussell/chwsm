@@ -11,7 +11,7 @@ CFLAGS += -Fno-strict-aliasing -Wno-strict-aliasing -Wall -Wextra -Werror -std=c
 CFLAGS_DEBUG = $(CFLAGS) -O0 -g $(CFLAGS_DEBUG_EXTRA)
 CFLAGS_FAST = $(CFLAGS) -O2 $(CFLAGS_FAST_EXTRA)
 
-LDFLAGS += -lev
+LDFLAGS += -lev -rdynamic
 
 run: server2
 	./server2

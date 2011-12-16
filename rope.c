@@ -49,6 +49,7 @@ rope_segment *rope_segment_create(rope_segment *next, const char *data, size_t l
 {
   rope_segment *segment = malloc(sizeof(rope_segment) + length + 1);
   
+  segment->length = length;
   segment->next = next;
   memcpy(segment->data, data, length);
   segment->data[length] = '\0';
@@ -84,10 +85,10 @@ void rope_append_raw(rope *rope, const char *data, size_t length)
   rope->length += length;
 }
 
-void rope_puts(rope *rope)
+void rope_puts(const rope *rope)
 {
   for (rope_segment *segment = rope->first; segment; segment = segment->next)
     fwrite(segment->data, segment->length, 1, stdout);
-    
+
   fwrite("\n", 1, 1, stdout);
 }

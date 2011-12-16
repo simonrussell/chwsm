@@ -18,7 +18,7 @@ void rope_destroy(rope *);
 void rope_append_raw(rope *, const char *, size_t);
 void rope_append(rope *, const char *);
 
-void rope_puts(rope *);
+void rope_puts(const rope *);
 
 #endif
 

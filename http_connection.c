@@ -93,6 +93,15 @@ void http_callback(EV_P_ ev_io *w, int revents)
   
   http_connection *http = WATCHER_TO_CONNECTION(w);
   
+/*  if (revents & EV_WRITE)
+  {
+    puts("writable");
+  }
+  if (revents & EV_READ)
+  {
+    puts("readable");
+  }*/
+  
   if (!http->message_complete && (revents & EV_READ))
   {
     int length = read(http->watcher.fd, read_buffer, sizeof(read_buffer));
